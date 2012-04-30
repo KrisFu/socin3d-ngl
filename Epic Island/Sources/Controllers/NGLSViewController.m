@@ -35,13 +35,13 @@
   CGFloat               _oldDistance;
 }
 
-//typedef enum
-//{
-//  upRight,
-//  upLeft,
-//  downLeft,
-//  downRight
-//} Direction;
+typedef enum
+{
+  upRight,
+  upLeft,
+  downLeft,
+  downRight
+} Direction;
 
 - (void) drawView
 {
@@ -54,14 +54,62 @@
   trans.y = _movementA.y;
   
 	NGLvec2 pan;
-  pan.x = trans.x + (_movementB.x);
-  pan.y = trans.y + (_movementB.y);
+  pan.x = 0;
+  pan.y = 0;
 
   if ((_movementA.x * _movementB.x < 0) && (_movementA.y * _movementB.y < 0))
     trans.z = _movementA.x;
-  else
+  else if(!(CGPointEqualToPoint(_movementB, CGPointZero)))// if (!((_movementA.x * _movementB.x > 0) && (_movementA.y * _movementB.y > 0)))
   {
-//    NSLog(@"boat");
+//    Direction directionA, directionB;
+    BOOL isClockwise;
+    
+//    if (_movementA.x > 0)
+//    {
+//      if (_movementA.y > 0)
+//        directionA = upRight;
+//      else
+//        directionB = downRight;
+//    }
+//    else
+//    {
+//      if (_movementA.y > 0)
+//        directionA = upLeft;
+//      else
+//        directionA = downLeft;
+//    }
+//    
+    if (_movementB.x > 0)
+    {
+      if (_movementB.y > 0)
+        isClockwise = NO;
+//        directionA = upRight;
+      else
+        isClockwise = YES;
+//        directionB = downRight;
+    }
+    else
+    {
+      if (_movementB.y > 0)
+        isClockwise = NO;
+//        directionA = upLeft;
+      else
+        isClockwise = YES;
+//        directionA = downLeft;
+    }
+    
+    NSLog(@"%d", isClockwise);
+    
+    if (isClockwise)
+    {
+      pan.x = 1;
+      pan.y = 1;
+    }
+    else
+    {
+      pan.x = -1;
+      pan.y = -1;
+    }
   }
   
 	// Updating the camera rotations
@@ -74,7 +122,9 @@
 	// Updating the camera movement
   float scale = 0.003;
 
-  if (trans.z == 0)
+  if (pan.x != 0)
+    _camera.rotateY += pan.x;
+  else if (trans.z == 0)
     [_camera translateRelativeToX:trans.x * scale toY:-trans.y * scale toZ:0];
   else
     [_camera translateRelativeToX:0 toY:0 toZ:trans.z * scale];
@@ -322,6 +372,7 @@
       _movementA = _movementB;
       _movementB = tempPoint;
     }
+    
 	}
 
 }
