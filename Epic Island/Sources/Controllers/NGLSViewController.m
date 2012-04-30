@@ -24,13 +24,24 @@
 	NGLCamera             *_camera;
 	NGLSMovementView      *_left, *_right;
 	UIProgressView        *_progress;
-  CGPoint               _pointA;
-  CGPoint               _oldPointA;
-  CGPoint               _pointB;
-  CGPoint               _oldPointB;
+  CGPoint               _movementA;
+//  CGPoint               _oldPointA;
+  CGPoint               _movementB;
+//  CGPoint               _oldPointB;
+  CGPoint               _touchStartPointA;
+  CGPoint               _touchStartPointB;
+
   CGFloat               _distance;
   CGFloat               _oldDistance;
 }
+
+//typedef enum
+//{
+//  upRight,
+//  upLeft,
+//  downLeft,
+//  downRight
+//} Direction;
 
 - (void) drawView
 {
@@ -38,27 +49,42 @@
 	//	NinevehGL Stuff
 	//*************************
 	// Getting the scalar movement from the controls
-	NGLvec2 trans = _left.movement;
-  trans.x = _pointA.x - _oldPointA.x;
-  trans.y = _pointA.y - _oldPointA.y;
+	NGLvec3 trans;
+  trans.x = _movementA.x;
+  trans.y = _movementA.y;
   
-	NGLvec2 pan = _right.movement;
-  pan.x = trans.x;// + (_pointB.x - _oldPointB.x);
-  pan.y = trans.y;// + (_pointB.y - _oldPointB.y);
-//  trans.x = 0;
-//  trans.y = 0;
-  
-  _pointA = CGPointZero;
-  _oldPointA = _pointA;
+	NGLvec2 pan;
+  pan.x = trans.x + (_movementB.x);
+  pan.y = trans.y + (_movementB.y);
+
+  if ((_movementA.x * _movementB.x < 0) && (_movementA.y * _movementB.y < 0))
+    trans.z = _movementA.x;
+  else
+  {
+//    NSLog(@"boat");
+  }
   
 	// Updating the camera rotations
-//	_camera.rotateY += pan.x * 0.1;
-//	_camera.rotateX -= pan.y * 0.1;
-	
+
+//  _camera.rotateY += trans.x;
+//  _camera.rotateX += trans.y;
+
+//  NSLog(@"%f", _camera.rotateX);
+
 	// Updating the camera movement
-  float scale = 0.01;
-	[_camera translateRelativeToX:trans.x * scale toY:trans.y * scale toZ:0];
-	
+  float scale = 0.003;
+
+  if (trans.z == 0)
+    [_camera translateRelativeToX:trans.x * scale toY:-trans.y * scale toZ:0];
+  else
+    [_camera translateRelativeToX:0 toY:0 toZ:trans.z * scale];
+
+//  _camera.rotateY += pan.x * scale;
+//	_camera.rotateX += pan.y * scale;
+
+  _movementA = CGPointZero;
+  _movementB = CGPointZero;
+
 	[_camera drawCamera];
 }
 
@@ -192,6 +218,13 @@
   
 	// Starts the debug monitor
 	[[NGLDebug debugMonitor] startWithView:(NGLView *)self.view];
+
+  _movementA = CGPointZero;
+//  _oldPointA = CGPointZero;
+  _movementB = CGPointZero;
+//  _oldPointB = CGPointZero;
+  _touchStartPointA = CGPointZero;
+  _touchStartPointB = CGPointZero;
 }
 
 - (void) viewDidAppear:(BOOL)animated
@@ -228,26 +261,31 @@
 	
 	// Setting the right and left control areas. They are circular areas near to the screen's corners.
 	CGSize size = self.view.bounds.size;
-	CGPoint leftCorner = CGPointMake(50, size.height - 50);
-	CGPoint rightCorner = CGPointMake(size.width - 50, size.height - 50);
-	float radius = size.width * 0.2f;
-	
+//	CGPoint leftCorner = CGPointMake(50, size.height - 50);
+//	CGPoint rightCorner = CGPointMake(size.width - 50, size.height - 50);
+//	float radius = size.width * 0.2f;
+
 	for (touch in touches)
 	{
 		// Getting the touch position.
 		point = [touch locationInView:self.view];
-		
+
+    if ((_touchStartPointA.x == 0) && (_touchStartPointA.y == 0))
+      _touchStartPointA = point;
+    else
+      _touchStartPointB = point;
+
 		// Calculating if the current touch position is inside the circular control area.
-		if (distanceBetweenPoints(point, leftCorner) <= radius)
-		{
-			_left.outerPosition = point;
-			_left.touch = touch;
-		}
-		else if (distanceBetweenPoints(point, rightCorner) <= radius)
-		{
-			_right.outerPosition = point;
-			_right.touch = touch;
-		}
+//		if (distanceBetweenPoints(point, leftCorner) <= radius)
+//		{
+//			_left.outerPosition = point;
+//			_left.touch = touch;
+//		}
+//		else if (distanceBetweenPoints(point, rightCorner) <= radius)
+//		{
+//			_right.outerPosition = point;
+//			_right.touch = touch;
+//		}
 	}
 }
 
@@ -257,67 +295,44 @@
 	[super touchesMoved:touches withEvent:event];
 	
   UITouch *touchA, *touchB;
-	CGPoint pointA, pointB;
-//	CGPoint oldPointA, oldPointB;
-  
-	// Pan gesture.
-	if ([touches count] == 1)
-	{
-		touchA = [[touches allObjects] objectAtIndex:0];
-		pointA = [touchA locationInView:self.view];
-		pointB = [touchA previousLocationInView:self.view];
+	CGPoint pointA, oldPointA;
 
-		_pointA.x = (pointA.x - pointB.x);
-		_pointA.y = (pointA.y - pointB.y);
-	}
+  touchA = [[touches allObjects] objectAtIndex:0];
+  pointA = [touchA locationInView:self.view];
+  oldPointA = [touchA previousLocationInView:self.view];
+
+  _movementA.x = (pointA.x - oldPointA.x);
+  _movementA.y = (pointA.y - oldPointA.y);
+
 	// Pinch gesture.
-	else if ([touches count] == 2)
+	if ([touches count] == 2)
 	{
-		touchA = [[touches allObjects] objectAtIndex:0];
+    CGPoint pointB, oldPointB;
 		touchB = [[touches allObjects] objectAtIndex:1];
-		
-		// Current distance.
-		_pointA = [touchA locationInView:self.view];
-		_pointB = [touchB locationInView:self.view];
-//		float currDistance = distanceBetweenPoints(pointA, pointB);
-		
-		// Previous distance.
-		_oldPointA = [touchA previousLocationInView:self.view];
-		_oldPointB = [touchB previousLocationInView:self.view];
-//		float prevDistance = distanceBetweenPoints(pointA, pointB);
+    pointB = [touchB locationInView:self.view];
+    oldPointB = [touchB previousLocationInView:self.view];
 
-//		_distance = (currDistance - prevDistance) * 0.005;
+    _movementB.x = (pointB.x - oldPointB.x);
+    _movementB.y = (pointB.y - oldPointB.y);
 
-//		_pointA.x = (pointA.x - oldPointA.x);
-//		_pointA.y = (pointA.y - oldPointA.y);
-//		_pointB.x = (pointB.x - oldPointB.x);
-//		_pointB.y = (pointB.y - oldPointB.y);
+    CGPoint tempPoint;
+    if (_touchStartPointA.x > _touchStartPointB.x)
+    {
+      tempPoint = _movementA;
+      _movementA = _movementB;
+      _movementB = tempPoint;
+    }
 	}
 
-  
-//	UITouch *touch;
-//	CGPoint point;
-//	
-//	for (touch in touches)
-//	{
-//		point = [touch locationInView:self.view];
-//		
-//		// Updating the inner position of the controls.
-//		if (_left.touch == touch)
-//		{
-//			_left.innerPosition = point;
-//		}
-//		else if (_right.touch == touch)
-//		{
-//			_right.innerPosition = point;
-//		}
-//	}
 }
 
 - (void) touchesEnded:(NSSet *)touches withEvent:(UIEvent *)event
 {
 	// Super call, must be called for a UIKit rule.
 	[super touchesEnded:touches withEvent:event];
+
+  _touchStartPointA = CGPointZero;
+  _touchStartPointB = CGPointZero;
 	
 	UITouch *touch;
 	
