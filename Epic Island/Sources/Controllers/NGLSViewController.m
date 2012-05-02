@@ -22,7 +22,6 @@
   NSMutableArray        *_levelNameArray;
 	NGLMesh               *_groundMesh;
 	NGLCamera             *_camera;
-	NGLSMovementView      *_left, *_right;
 	UIProgressView        *_progress;
   CGPoint               _movement;
   CGFloat               _zoomDistance;
@@ -218,30 +217,6 @@ typedef enum
 //  [self.view addSubview:COM2Button];
 }
 
-- (void) viewDidAppear:(BOOL)animated
-{
-	// Super call, must be called for a UIKit rule.
-	[super viewDidAppear:animated];
-	
-	// Setting the right and left control areas. They are circular areas near to the screen's corners.
-	CGSize size = self.view.bounds.size;
-	CGPoint leftCorner = CGPointMake(50, size.height - 50);
-	CGPoint rightCorner = CGPointMake(size.width - 50, size.height - 50);
-	float radius = size.width * 0.2f;
-	
-	// Placing the controllers at the screen, if necessary.
-	if (_left == nil &&  _right == nil)
-	{
-		_left = [[NGLSMovementView alloc] init];
-		_right = [[NGLSMovementView alloc] init];
-		_left.outerPosition = CGPointMake(leftCorner.x + radius * 0.5f, leftCorner.y - radius * 0.5);
-		_right.outerPosition = CGPointMake(rightCorner.x - radius * 0.5f, rightCorner.y - radius * 0.5);
-		
-//		[self.view addSubview:_left];
-//		[self.view addSubview:_right];
-	}
-}
-
 - (void) touchesMoved:(NSSet *)touches withEvent:(UIEvent *)event
 {
 	// Super call, must be called for a UIKit rule.
@@ -258,7 +233,6 @@ typedef enum
   movementA.x = (pointA.x - oldPointA.x);
   movementA.y = (pointA.y - oldPointA.y);
 
-	// Pinch gesture.
   if ([event.allTouches count] == 1)
     _movement = movementA;
 	if ([event.allTouches count] == 2)
@@ -267,6 +241,8 @@ typedef enum
     CGPoint movementB;
     CGFloat distance, oldDistance;
     CGFloat slope, oldSlope;
+    CGPoint relativeMovement;
+    CGPoint AToBVector;
     
 		touchB = [[event.allTouches allObjects] objectAtIndex:1];
     pointB = [touchB locationInView:self.view];
@@ -275,22 +251,35 @@ typedef enum
     movementB.x = (pointB.x - oldPointB.x);
     movementB.y = (pointB.y - oldPointB.y);
 
-    if ((((movementA.x * movementA.y) > 0) && ((movementB.x * movementB.y) > 0)) //movements in opposite directions
-      ||(((movementA.x * movementA.y) < 0) && ((movementB.x * movementB.y) < 0)))
+    relativeMovement.x = movementB.x - movementA.x;
+    relativeMovement.y = movementB.y - movementA.y;
+
+    AToBVector.x = oldPointB.x - oldPointA.x;
+    AToBVector.y = oldPointB.y - oldPointA.y;
+
+    if (((relativeMovement.x * relativeMovement.y >= 0) && (AToBVector.x * AToBVector.y >= 0)) //the 2 touches are in opposite directions, one in upper left, the other in bottom right
+        || ((relativeMovement.x * relativeMovement.y <= 0) && (AToBVector.x * AToBVector.y <= 0))) //the 2 touches are in opposite directions, one in bottom left, the other in upper right
     {
       distance = distanceBetweenPoints(pointA, pointB);
       oldDistance = distanceBetweenPoints(oldPointA, oldPointB);
       _zoomDistance = distance - oldDistance;
     }
-    else //rotation or something else
+    else
     {
-      slope = (pointB.y - pointA.y) / (pointB.x - pointA.x);
-      oldSlope = (oldPointB.y - oldPointA.y) / (oldPointB.x - oldPointA.x);
-      
-      if (slope > oldSlope)
-        _rotation = 1;
-      else
-        _rotation = -1;
+      if ((movementA.x * movementB.x >= 0) && (movementA.y * movementB.y >= 0))
+      {
+        //do nothing if both fingers are moving in the same direction
+      }
+      else //rotation
+      {
+        slope = (pointB.y - pointA.y) / (pointB.x - pointA.x);
+        oldSlope = (oldPointB.y - oldPointA.y) / (oldPointB.x - oldPointA.x);
+
+        if (slope > oldSlope)
+          _rotation = 1;
+        else
+          _rotation = -1;
+      }
     }
 	}
 }
