@@ -24,15 +24,9 @@
 	NGLCamera             *_camera;
 	NGLSMovementView      *_left, *_right;
 	UIProgressView        *_progress;
-  CGPoint               _movementA;
-//  CGPoint               _oldPointA;
-  CGPoint               _movementB;
-//  CGPoint               _oldPointB;
-  CGPoint               _touchStartPointA;
-  CGPoint               _touchStartPointB;
-
-  CGFloat               _distance;
-  CGFloat               _oldDistance;
+  CGPoint               _movement;
+  CGFloat               _zoomDistance;
+  CGFloat               _rotation;
 }
 
 typedef enum
@@ -50,91 +44,22 @@ typedef enum
 	//*************************
 	// Getting the scalar movement from the controls
 	NGLvec3 trans;
-  trans.x = _movementA.x;
-  trans.y = _movementA.y;
+  trans.x = _movement.x;
+  trans.y = _movement.y;
+  trans.z = _zoomDistance;
   
-	NGLvec2 pan;
-  pan.x = 0;
-  pan.y = 0;
-
-  if ((_movementA.x * _movementB.x < 0) && (_movementA.y * _movementB.y < 0))
-    trans.z = _movementA.x;
-  else if(!(CGPointEqualToPoint(_movementB, CGPointZero)))// if (!((_movementA.x * _movementB.x > 0) && (_movementA.y * _movementB.y > 0)))
-  {
-//    Direction directionA, directionB;
-    BOOL isClockwise;
-    
-//    if (_movementA.x > 0)
-//    {
-//      if (_movementA.y > 0)
-//        directionA = upRight;
-//      else
-//        directionB = downRight;
-//    }
-//    else
-//    {
-//      if (_movementA.y > 0)
-//        directionA = upLeft;
-//      else
-//        directionA = downLeft;
-//    }
-//    
-    if (_movementB.x > 0)
-    {
-      if (_movementB.y > 0)
-        isClockwise = NO;
-//        directionA = upRight;
-      else
-        isClockwise = YES;
-//        directionB = downRight;
-    }
-    else
-    {
-      if (_movementB.y > 0)
-        isClockwise = NO;
-//        directionA = upLeft;
-      else
-        isClockwise = YES;
-//        directionA = downLeft;
-    }
-    
-    NSLog(@"%d", isClockwise);
-    
-    if (isClockwise)
-    {
-      pan.x = 1;
-      pan.y = 1;
-    }
-    else
-    {
-      pan.x = -1;
-      pan.y = -1;
-    }
-  }
-  
-	// Updating the camera rotations
-
-//  _camera.rotateY += trans.x;
-//  _camera.rotateX += trans.y;
-
-//  NSLog(@"%f", _camera.rotateX);
-
-	// Updating the camera movement
   float scale = 0.003;
-
-  if (pan.x != 0)
-    _camera.rotateY += pan.x;
-  else if (trans.z == 0)
+  _camera.rotateY += _rotation;
+  
+    if (trans.z == 0)
     [_camera translateRelativeToX:trans.x * scale toY:-trans.y * scale toZ:0];
   else
     [_camera translateRelativeToX:0 toY:0 toZ:trans.z * scale];
 
-//  _camera.rotateY += pan.x * scale;
-//	_camera.rotateX += pan.y * scale;
-
-  _movementA = CGPointZero;
-  _movementB = CGPointZero;
-
+  _movement = CGPointZero;
+  _zoomDistance = 0;
+  _rotation = 0;
+  
 	[_camera drawCamera];
 }
 
@@ -259,7 +184,7 @@ typedef enum
     button.autoresizingMask = UIViewAutoresizingFlexibleRightMargin | UIViewAutoresizingFlexibleBottomMargin;    
     [button addTarget:self action:@selector(onBtnLevel:) forControlEvents:UIControlEventTouchUpInside];
     [self.view addSubview:button];
-    
+
     BOOL isShowing = [self isShowingLevel:levelName];
     button.alpha = isShowing ? 1.0 : 0.4;
     
@@ -269,12 +194,28 @@ typedef enum
 	// Starts the debug monitor
 	[[NGLDebug debugMonitor] startWithView:(NGLView *)self.view];
 
-  _movementA = CGPointZero;
-//  _oldPointA = CGPointZero;
-  _movementB = CGPointZero;
-//  _oldPointB = CGPointZero;
-  _touchStartPointA = CGPointZero;
-  _touchStartPointB = CGPointZero;
+  _movement = CGPointZero;
+  
+  UIButton *ASButton = [UIButton buttonWithType:UIButtonTypeRoundedRect];
+  ASButton.frame = CGRectMake(350, 50, 110, 32);
+  [ASButton setTitle:@"AS" forState:UIControlStateNormal];
+  ASButton.autoresizingMask = UIViewAutoresizingFlexibleRightMargin | UIViewAutoresizingFlexibleBottomMargin;
+  ASButton.tag = 0;
+//  [self.view addSubview:ASButton];
+  
+  UIButton *COM1Button = [UIButton buttonWithType:UIButtonTypeRoundedRect];
+  COM1Button.frame = CGRectMake(465, 50, 110, 32);
+  [COM1Button setTitle:@"COM1" forState:UIControlStateNormal];
+  COM1Button.autoresizingMask = UIViewAutoresizingFlexibleRightMargin | UIViewAutoresizingFlexibleBottomMargin;
+  COM1Button.tag = 1;
+//  [self.view addSubview:COM1Button];
+  
+  UIButton *COM2Button = [UIButton buttonWithType:UIButtonTypeRoundedRect];
+  COM2Button.frame = CGRectMake(580, 50, 110, 32);
+  [COM2Button setTitle:@"COM2" forState:UIControlStateNormal];
+  COM2Button.autoresizingMask = UIViewAutoresizingFlexibleRightMargin | UIViewAutoresizingFlexibleBottomMargin;
+  COM2Button.tag = 2;
+//  [self.view addSubview:COM2Button];
 }
 
 - (void) viewDidAppear:(BOOL)animated
@@ -301,103 +242,56 @@ typedef enum
 	}
 }
 
-- (void) touchesBegan:(NSSet *)touches withEvent:(UIEvent *)event
-{
-	// Super call, must be called if we have no plans to override all touch methods, it's an UIKit rule.
-	[super touchesBegan:touches withEvent:event];
-	
-	UITouch *touch;
-	CGPoint point;
-	
-	// Setting the right and left control areas. They are circular areas near to the screen's corners.
-	CGSize size = self.view.bounds.size;
-//	CGPoint leftCorner = CGPointMake(50, size.height - 50);
-//	CGPoint rightCorner = CGPointMake(size.width - 50, size.height - 50);
-//	float radius = size.width * 0.2f;
-
-	for (touch in touches)
-	{
-		// Getting the touch position.
-		point = [touch locationInView:self.view];
-
-    if ((_touchStartPointA.x == 0) && (_touchStartPointA.y == 0))
-      _touchStartPointA = point;
-    else
-      _touchStartPointB = point;
-
-		// Calculating if the current touch position is inside the circular control area.
-//		if (distanceBetweenPoints(point, leftCorner) <= radius)
-//		{
-//			_left.outerPosition = point;
-//			_left.touch = touch;
-//		}
-//		else if (distanceBetweenPoints(point, rightCorner) <= radius)
-//		{
-//			_right.outerPosition = point;
-//			_right.touch = touch;
-//		}
-	}
-}
-
 - (void) touchesMoved:(NSSet *)touches withEvent:(UIEvent *)event
 {
 	// Super call, must be called for a UIKit rule.
 	[super touchesMoved:touches withEvent:event];
-	
+
   UITouch *touchA, *touchB;
 	CGPoint pointA, oldPointA;
+  CGPoint movementA;
 
-  touchA = [[touches allObjects] objectAtIndex:0];
+  touchA = [[event.allTouches allObjects] objectAtIndex:0];
   pointA = [touchA locationInView:self.view];
   oldPointA = [touchA previousLocationInView:self.view];
 
-  _movementA.x = (pointA.x - oldPointA.x);
-  _movementA.y = (pointA.y - oldPointA.y);
+  movementA.x = (pointA.x - oldPointA.x);
+  movementA.y = (pointA.y - oldPointA.y);
 
 	// Pinch gesture.
-	if ([touches count] == 2)
+  if ([event.allTouches count] == 1)
+    _movement = movementA;
+	if ([event.allTouches count] == 2)
 	{
     CGPoint pointB, oldPointB;
-		touchB = [[touches allObjects] objectAtIndex:1];
+    CGPoint movementB;
+    CGFloat distance, oldDistance;
+    CGFloat slope, oldSlope;
+    
+		touchB = [[event.allTouches allObjects] objectAtIndex:1];
     pointB = [touchB locationInView:self.view];
     oldPointB = [touchB previousLocationInView:self.view];
 
-    _movementB.x = (pointB.x - oldPointB.x);
-    _movementB.y = (pointB.y - oldPointB.y);
+    movementB.x = (pointB.x - oldPointB.x);
+    movementB.y = (pointB.y - oldPointB.y);
 
-    CGPoint tempPoint;
-    if (_touchStartPointA.x > _touchStartPointB.x)
+    if ((((movementA.x * movementA.y) > 0) && ((movementB.x * movementB.y) > 0)) //movements in opposite directions
+      ||(((movementA.x * movementA.y) < 0) && ((movementB.x * movementB.y) < 0)))
     {
-      tempPoint = _movementA;
-      _movementA = _movementB;
-      _movementB = tempPoint;
+      distance = distanceBetweenPoints(pointA, pointB);
+      oldDistance = distanceBetweenPoints(oldPointA, oldPointB);
+      _zoomDistance = distance - oldDistance;
     }
-    
-	}
-
-}
-
-- (void) touchesEnded:(NSSet *)touches withEvent:(UIEvent *)event
-{
-	// Super call, must be called for a UIKit rule.
-	[super touchesEnded:touches withEvent:event];
-
-  _touchStartPointA = CGPointZero;
-  _touchStartPointB = CGPointZero;
-	
-	UITouch *touch;
-	
-	for (touch in touches)
-	{
-		// Reseting the touch control.
-		if (_left.touch == touch)
-		{
-			_left.touch = nil;
-		}
-		else if (_right.touch == touch)
-		{
-			_right.touch = nil;
-		}
+    else //rotation or something else
+    {
+      slope = (pointB.y - pointA.y) / (pointB.x - pointA.x);
+      oldSlope = (oldPointB.y - oldPointA.y) / (oldPointB.x - oldPointA.x);
+      
+      if (slope > oldSlope)
+        _rotation = 1;
+      else
+        _rotation = -1;
+    }
 	}
 }
 
@@ -420,9 +314,6 @@ typedef enum
 	
 	[super dealloc];
 }
-
-
-
 
 //
 // Called when a level button is pressed
